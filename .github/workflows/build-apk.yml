@@ -21,7 +21,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.5'
+          flutter-version: '3.47.5'
           channel: 'stable'
           cache: true
 
@@ -32,7 +32,14 @@ jobs:
         run: flutter analyze --no-fatal-infos || true
 
       - name: Build release APK
-        run: flutter build apk --release --target-platform android-arm64
+        run: |
+          flutter build apk --release --target-platform android-arm64 > build-output.txt 2>&1 || {
+            echo "## Build failed — error tail" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -c 15000 build-output.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
