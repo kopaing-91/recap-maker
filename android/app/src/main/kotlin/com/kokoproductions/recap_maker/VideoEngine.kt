@@ -76,7 +76,14 @@ class VideoEngine(private val activity: MainActivity) {
             activity.assets.open(assetName).use { inp ->
                 out.outputStream().use { inp.copyTo(it) }
             }
+        }
+        // Always ensure executable bit (fixes Permission denied on some devices
+        // where a previously-copied binary lacks exec permission)
+        if (!out.canExecute()) {
             out.setExecutable(true)
+            try {
+                Runtime.getRuntime().exec(arrayOf("chmod", "755", out.absolutePath)).waitFor()
+            } catch (e: Exception) { /* best effort */ }
         }
         out.absolutePath
     }
