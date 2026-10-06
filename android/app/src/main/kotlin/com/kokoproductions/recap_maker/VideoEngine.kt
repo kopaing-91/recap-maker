@@ -68,24 +68,30 @@ class VideoEngine(private val activity: MainActivity) {
     }
 
     // ---------- bundled ffmpeg binary ----------
+    // Shipped as libffmpeg.so in jniLibs so it lands in the app's native
+    // library dir (executable). We do NOT copy to filesDir: Android 10+
+    // blocks execution from there (SELinux), causing "Permission denied".
     private val ffmpeg: String by lazy {
-        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
-        val assetName = if (abi.contains("64")) "ffmpeg-arm64" else "ffmpeg-arm32"
-        val out = File(activity.filesDir, "ffmpeg")
-        if (!out.exists() || out.length() < 1000000) {
-            activity.assets.open(assetName).use { inp ->
-                out.outputStream().use { inp.copyTo(it) }
+        val libFile = File(activity.applicationInfo.nativeLibraryDir, "libffmpeg.so")
+        if (!libFile.exists()) {
+            // Fallback: old installs may still have the assets copy
+            val out = File(activity.filesDir, "ffmpeg")
+            if (!out.exists() || out.length() < 1000000) {
+                val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                val assetName = if (abi.contains("64")) "ffmpeg-arm64" else "ffmpeg-arm32"
+                activity.assets.open(assetName).use { inp ->
+                    out.outputStream().use { inp.copyTo(it) }
+                }
             }
+            if (!out.canExecute()) {
+                out.setExecutable(true)
+                try {
+                    Runtime.getRuntime().exec(arrayOf("chmod", "755", out.absolutePath)).waitFor()
+                } catch (e: Exception) { /* best effort */ }
+            }
+            return@lazy out.absolutePath
         }
-        // Always ensure executable bit (fixes Permission denied on some devices
-        // where a previously-copied binary lacks exec permission)
-        if (!out.canExecute()) {
-            out.setExecutable(true)
-            try {
-                Runtime.getRuntime().exec(arrayOf("chmod", "755", out.absolutePath)).waitFor()
-            } catch (e: Exception) { /* best effort */ }
-        }
-        out.absolutePath
+        libFile.absolutePath
     }
 
     private fun ffprobeJson(path: String): String {
