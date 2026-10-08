@@ -288,14 +288,16 @@ class VideoEngine(private val activity: MainActivity) {
     }
 
     private val videoCodec: String by lazy {
+        // Prefer libx264 software encoding (reliable on all devices);
+        // fall back to h264_mediacodec only if libx264 is missing.
         try {
-            val pb = ProcessBuilder(ffmpeg, "-hide_banner", "-h", "encoder=h264_mediacodec")
+            val pb = ProcessBuilder(ffmpeg, "-hide_banner", "-h", "encoder=libx264")
             pb.redirectErrorStream(true)
             val p = pb.start()
             val out = p.inputStream.bufferedReader().readText()
             p.waitFor()
-            if (out.contains("h264_mediacodec")) "h264_mediacodec" else "libx264"
-        } catch (_: Exception) { "libx264" }
+            if (out.contains("libx264")) "libx264" else "h264_mediacodec"
+        } catch (_: Exception) { "h264_mediacodec" }
     }
 
     private fun cameraFilter(move: Int, durSec: Double): String {
